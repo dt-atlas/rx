@@ -1,0 +1,56 @@
+#!/usr/bin/bash
+
+# scsynth/sclang dependencies
+sudo apt install        \
+    git                 \
+    build-essential     \
+    cmake               \
+    libjack-jackd2-dev  \
+    libsndfile1-dev     \
+    libfftw3-dev        \
+    libxt-dev           \
+    libavahi-client-dev \
+    libudev-dev         \
+    libasound2-dev      \
+    libreadline-dev     \
+    libxkbcommon-dev    \
+    jackd2
+
+# scide dependencies
+sudo apt install -y     \
+    qt6-base-dev        \
+    qt6-svg-dev         \
+    qt6-tools-dev       \
+    qt6-wayland         \
+    qt6-websockets-dev  \
+    qt6-webengine-dev
+
+# Clone the repo
+mkdir -p ~/src/supercollider
+pushd ~/src/supercollider
+git clone --branch 3.14 --recurse-submodules https://github.com/supercollider/supercollider.git
+pushd supercollider
+
+# Configure CMake build
+mkdir build
+pushd build
+cmake -DCMAKE_BUILD_TYPE=Release -DSUPERNOVA=OFF -DSC_EL=OFF -DSC_VIM=ON -DNATIVE=ON ..
+
+# Compile and install
+make -j5
+sudo make install
+
+# Reset dynamic linker
+sudo ldconfig
+
+# Configure JACK
+echo /usr/bin/jackd -P75 -p16 -dalsa -dhw:0 -p1024 -n3 > ~/.jackdrc
+sudo usermod -aG audio $USER
+
+# Reboot
+sudo systemctl reboot --now
+
+# Restore user's working directory
+popd
+popd
+popd
