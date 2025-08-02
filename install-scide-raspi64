@@ -1,56 +1,94 @@
 #!/usr/bin/bash
 
-# scsynth/sclang dependencies
-sudo apt install        \
-    git                 \
-    build-essential     \
-    cmake               \
-    libjack-jackd2-dev  \
-    libsndfile1-dev     \
-    libfftw3-dev        \
-    libxt-dev           \
-    libavahi-client-dev \
-    libudev-dev         \
-    libasound2-dev      \
-    libreadline-dev     \
-    libxkbcommon-dev    \
-    jackd2
+# based on the following tutorial:
+#   https://github.com/supercollider/supercollider/blob/develop/README_RASPBERRY_PI.md
 
-# scide dependencies
-sudo apt install -y     \
-    qt6-base-dev        \
-    qt6-svg-dev         \
-    qt6-tools-dev       \
-    qt6-wayland         \
-    qt6-websockets-dev  \
-    qt6-webengine-dev
+SC_BRANCH=${1:-'3.14'}
 
-# Clone the repo
-mkdir -p ~/src/supercollider
-pushd ~/src/supercollider
-git clone --branch 3.14 --recurse-submodules https://github.com/supercollider/supercollider.git
-pushd supercollider
+log_green() {
+    echo -e "\033[0;32m${1}.\033[0m" >2
+}
 
-# Configure CMake build
-mkdir build
-pushd build
-cmake -DCMAKE_BUILD_TYPE=Release -DSUPERNOVA=OFF -DSC_EL=OFF -DSC_VIM=ON -DNATIVE=ON ..
+preamble() {
+    sudo apt update
+    sudo apt upgrade -y
+    sudo apt install -y build-essential cmake git
+}
 
-# Compile and install
-make -j5
-sudo make install
+install_audio_packages() {
+    sudo apt install        \
+        libjack-jackd2-dev  \
+        libsndfile1-dev     \
+        libfftw3-dev        \
+        libxt-dev           \
+        libavahi-client-dev \
+        libudev-dev         \
+        libasound2-dev      \
+        libreadline-dev     \
+        libxkbcommon-dev    \
+        jackd2 # no -y flag so user can enable realtime priority
+}
 
-# Reset dynamic linker
-sudo ldconfig
+install_qt_packages() {
+    sudo apt install -y     \
+        qt6-base-dev        \
+        qt6-svg-dev         \
+        qt6-tools-dev       \
+        qt6-wayland         \
+        qt6-websockets-dev  \
+        qt6-webengine-dev
+}
 
-# Configure JACK
-echo /usr/bin/jackd -P75 -p16 -dalsa -dhw:0 -p1024 -n3 > ~/.jackdrc
-sudo usermod -aG audio $USER
+get_supercollider_source() {
+    mkdir -p ~/src/supercollider
+    pushd ~/src/supercollider
+    git clone --branch "${SC_BRANCH}" --recurse-submodules https://github.com/supercollider/supercollider.git
+    pushd supercollider
+}
 
-# Reboot
-sudo systemctl reboot --now
+build_and_install() {
+    # configure cmake build
+    mkdir build
+    pushd build
+    cmake -DCMAKE_BUILD_TYPE=Release -DSUPERNOVA=OFF -DSC_EL=OFF -DSC_VIM=ON -DNATIVE=ON ..
 
-# Restore user's working directory
-popd
-popd
-popd
+    # compile and install
+    make -j5
+    sudo make install
+}
+
+restore_workdir_and_linker() {
+    # restore working directory
+    popd
+    popd
+    popd
+
+    # reset dynamic linker
+    sudo ldconfig
+}
+
+configure_jack() {
+    echo /usr/bin/jackd -P75 -p16 -dalsa -dhw:0 -p1024 -n3 > ~/.jackdrc
+    sudo usermod -aG audio $USER
+}
+
+main() {
+    log_green 'Updating system packages, installing basic compilation tools (if missing)...'
+    preamble
+
+    log_green 'Installing audio libraries required by scsynth...'
+    install_audio_packages
+
+    log_green 'Installing Qt6 packages required by scide...'
+    install_qt_packages
+
+    log_green 'Cloning supercollider repository...'
+    get_supercollider_source
+
+    log_green 'Building/installing supercollider...'
+    build_and_install
+    restore_workdir_and_linker
+
+    log_green 'Configuring JACK and permissions...'
+    configure_jack
+}
