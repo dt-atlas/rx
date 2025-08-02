@@ -85,7 +85,7 @@ main() {
     log_green 'Cloning supercollider repository...'
     get_supercollider_source
 
-    log_green 'Building/installing supercollider...'
+    log_green 'Building/installing scsynth, sclang, scide...'
     build_and_install
     restore_workdir_and_linker
 
